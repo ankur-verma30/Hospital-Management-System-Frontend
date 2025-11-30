@@ -1,0 +1,25 @@
+/* Define layers */
+@layer tailwind-base, mantine-theme, tailwind-components, primereact, tailwind-utilities;
+
+/* 1️⃣ Tailwind base (preflight reset) */
+@layer tailwind-base {
+  @tailwind/preflight;
+}
+
+/* 2️⃣ Mantine Theme */
+@layer mantine-theme {
+  @import "./theme.css";
+}
+
+/* 3️⃣ Tailwind components (helps preserve container spacing, layout utilities, etc.) */
+@layer tailwind-components {
+  @tailwind utilities;
+}
+
+/* 4️⃣ PrimeReact theme — lower priority than utilities */
+@import "primereact/resources/themes/lara-light-blue/theme.css" layer(primereact);
+
+/* 5️⃣ Tailwind utilities — highest priority */
+@layer tailwind-utilities {
+  @tailwind utilities;
+}
