@@ -1,0 +1,316 @@
+import {
+    Button,
+    Fieldset,
+    NumberInput,
+    Select,
+    TextInput,
+    ActionIcon,
+    type SelectProps,
+    Group,
+    Badge,
+} from "@mantine/core";
+import { IconCheck, IconEdit, IconPlus, IconSearch, IconTrash } from "@tabler/icons-react";
+import { useForm } from "@mantine/form";
+import {
+    errorNotification,
+    successNotification,
+} from "../../../utility/NotificationUtil";
+import { Fragment, useEffect, useState } from "react";
+import { DataTable, type DataTableFilterMeta } from "primereact/datatable";
+import { Column } from "primereact/column";
+import { FilterMatchMode } from "primereact/api";
+import { getAllMedicine } from "../../../Service/MedicineService";
+import { addSales } from "../../../Service/SalesService";
+
+interface SaleItem {
+    medicineId: string;
+    quantity: number;
+}
+const Sales = () => {
+    const [data, setData] = useState<any[]>([]);
+    const [medicine, setMedicine] = useState<any[]>([]);
+    const [medicineMap, setMedicineMap] = useState<Record<string, any>>({});
+    const [edit, setEdit] = useState(false);
+    const [filters, setFilters] = useState<DataTableFilterMeta>({
+        global: { value: null, matchMode: FilterMatchMode.CONTAINS },
+    });
+
+
+    const [globalFilterValue, setGlobalFilterValue] = useState<string>("");
+    const [loading, setLoading] = useState(false);
+    const form = useForm({
+        initialValues: {
+            saleItems: [
+                { medicineId: "", quantity: 0 },
+            ] as SaleItem[],
+        },
+        validate: {
+            saleItems: {
+                medicineId: (value) => (!value ? "Medicine Required" : null),
+                quantity: (value) => (!value ? "Quantity Required" : null),
+            }
+        },
+    });
+
+    const handleSubmit = (values: any) => {
+
+        setLoading(true);
+        addSales(values)
+            .then((res) => {
+                // successNotification(
+                //     // `Stock ${update ? "Updated" : "Added"} Successfully`
+                // );
+                form.reset();
+                setEdit(false);
+                fetchData();
+            })
+            .catch((error) => {
+                // errorNotification(
+                //     error?.response?.data?.errorMessage ||
+                //     `Error ${update ? "Updating" : "Adding"} Stock`
+                // );
+            })
+            .finally(() => {
+                setLoading(false);
+            });
+    };
+
+    const onGlobalFilterChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const value = e.target.value;
+        const _filters: any = { ...filters };
+        _filters["global"].value = value;
+
+        setFilters(_filters);
+        setGlobalFilterValue(value);
+    };
+
+    useEffect(() => {
+        getAllMedicine()
+            .then((res) => {
+                setMedicine(res);
+                setMedicineMap(res.reduce((acc: any, item: any) => {
+                    acc[item.id] = item;
+                    return acc;
+                }, {}))
+            })
+            .catch((error) => {
+                console.log("Error fetching records", error);
+            });
+        fetchData();
+    }, []);
+
+    const fetchData = () => {
+        // getAllStocks()
+        //   .then((res) => {
+        //     setData(res);
+        //   })
+        //   .catch((error) => {
+        //     console.log("Error fetching records", error);
+        //   });
+    };
+
+    const onEdit = (rowData: any) => {
+        setEdit(true);
+        form.setValues({
+            ...rowData,
+            medicineId: "" + rowData.medicineId,
+            batchNo: rowData.batchNo,
+            quantity: rowData.quantity,
+            expiryDate: new Date(rowData.expiryDate),
+        });
+    };
+
+    const cancel = () => {
+        setEdit(false);
+        form.reset();
+    };
+
+    const actionBodyTemplate = (rowData: any) => {
+        return (
+            <div className="flex gap-2">
+                <ActionIcon onClick={() => onEdit(rowData)}>
+                    <IconEdit size={20} stroke={1.5} />
+                </ActionIcon>
+            </div>
+        );
+    };
+    const renderHeader = () => {
+        return (
+            <div className="flex flex-wrap gap-2 justify-between items-center">
+                <Button variant="filled" onClick={() => setEdit(true)}>
+                    Sell Medicine
+                </Button>
+                <TextInput
+                    leftSection={<IconSearch />}
+                    fw={500}
+                    value={globalFilterValue}
+                    onChange={onGlobalFilterChange}
+                    placeholder="Keyword Search"
+                />
+            </div>
+        );
+    };
+
+    const header = renderHeader();
+
+    const renderSelectOption: SelectProps["renderOption"] = ({ option, checked }: any) => {
+        return (
+            <Group flex="1" gap="xs">
+                <div className="flex gap-5 items-center">
+                    <span>{option.label}</span>
+                    {option?.manufacturer && (
+                        <span style={{ marginLeft: "auto", fontSize: "0.9rem", color: "gray" }}>
+                            {option.manufacturer}
+                        </span>
+                    )}
+                </div>
+                {checked && <IconCheck style={{ marginInlineStart: "auto" }} />}
+            </Group>
+        );
+    };
+
+
+    const statusBody = (rowData: any) => {
+        const isExpired = new Date(rowData.expiryDate) < new Date();
+        return <Badge color={isExpired ? "red" : "green"}>{isExpired ? "Expired" : "Active"}</Badge>
+    }
+
+    const addMoreMedicine = () => {
+        form.insertListItem('saleItems', { medicineId: "", quantity: 0 });
+    }
+
+    return (
+        <div>
+            {!edit ? (
+                <DataTable
+                    header={header}
+                    value={data}
+                    paginator
+                    stripedRows
+                    size="small"
+                    rows={10}
+                    paginatorTemplate="FirstPageLink PrevPageLink PageLinks NextPageLink LastPageLink CurrentPageReport RowsPerPageDropdown"
+                    rowsPerPageOptions={[10, 25, 50]}
+                    dataKey="id"
+                    filters={filters}
+                    filterDisplay="menu"
+                    globalFilterFields={["doctorName", "notes"]}
+                    emptyMessage="No Stocks found."
+                    currentPageReportTemplate="Showing {first} to {last} of {totalRecords} entries"
+                >
+                    <Column field="name" header="Medicine" body={(rowData) => <span>{medicineMap["" + rowData.medicineId]?.name} <span>({medicineMap["" + rowData.medicineId]?.manufacturer})</span></span>} />
+
+                    <Column field="batchNo" header="Batch No." />
+
+                    <Column
+                        field="initialQuantity"
+                        header="Quantity"
+                    />
+
+                    <Column
+                        field="quantity"
+                        header="Remaining Quantity"
+                    />
+
+                    <Column
+                        field="expiryDate"
+                        header="Expiry Date"
+
+                    />
+                    <Column
+                        field="status"
+                        header="Status"
+                        body={statusBody}
+                    />
+
+                    <Column
+                        headerStyle={{ width: "5rem", textAlign: "center" }}
+                        bodyStyle={{ textAlign: "center", overflow: "visible" }}
+                        body={actionBodyTemplate}
+                    ></Column>
+
+                </DataTable>
+            ) : (
+                <form onSubmit={form.onSubmit(handleSubmit)} className="grid gap-5">
+                    <Fieldset className="grid gap-5"
+                        legend={
+                            <span className="text-lg font-medium  text-primary-500">
+                                Medicine Information
+                            </span>
+                        }
+                        radius="md"
+                    >
+                        <div className="grid grid-cols-5 gap-4">
+                            {form.values.saleItems.map((item: any, index: number) => (
+                                <Fragment key={index}>
+                                    <div className="col-span-2">
+                                        <Select
+                                            withAsterisk
+                                            renderOption={renderSelectOption}
+                                            {...form.getInputProps(`saleItems.${index}.medicineId`)}
+                                            label="Medicine ID"
+                                            placeholder="Select Medicine ID"
+                                            //arr[0].name  and arr.0.name two ways
+                                            data={medicine.map((med) => ({
+                                                ...med,
+                                                value: "" + med.id,
+                                                label: med.name
+                                            }))}
+                                        />
+                                    </div>
+
+                                    <div className="col-span-2">
+                                        <NumberInput
+                                            withAsterisk
+                                            {...form.getInputProps(`saleItems.${index}.quantity`)}
+                                            min={0}
+                                            clampBehavior="strict"
+                                            label="Quantity"
+                                            placeholder="Enter Quantity"
+                                            max={50}
+                                        />
+                                    </div>
+                                    <div className="flex items-end justify-between">
+                                        {(item.quantity > 0 && item.medicineId) ? <div><span className="text-lg">Total :</span>{item.quantity} X {medicineMap[item.medicineId]?.unitPrice} = {item.quantity * medicineMap[item.medicineId]?.unitPrice}</div>
+                                        :<div></div>}
+                                        <ActionIcon size="lg" color="red" onClick={() => form.removeListItem('saleItems', index)}>
+                                            <IconTrash size={20} stroke={1.5} />
+                                        </ActionIcon>
+                                    </div>
+                                </Fragment>
+
+                            ))}
+                        </div>
+                        <div className="flex items-center justify-center">
+                            <Button onClick={addMoreMedicine} variant="outline" leftSection={<IconPlus size={16} />}>Add more </Button>
+                        </div>
+
+
+                    </Fieldset>
+
+                    <div className="flex items-center gap-5 justify-center">
+                        <Button
+                            loading={loading}
+                            type="submit"
+                            className="w-full"
+                            variant="filled"
+                            color="primary"
+                        >
+                            Sell Medicine
+                        </Button>
+                        <Button
+                            loading={loading}
+                            variant="filled"
+                            color="red"
+                            onClick={cancel}
+                        >
+                            Cancel
+                        </Button>
+                    </div>
+                </form>
+            )}
+        </div>
+    );
+};
+
+export default Sales;

@@ -9,7 +9,6 @@ import {
   Group,
   Badge,
 } from "@mantine/core";
-import { medicineCategories } from "../../../Data/DropDownData";
 import { IconCheck, IconEdit, IconSearch } from "@tabler/icons-react";
 import { useForm } from "@mantine/form";
 import {
@@ -21,15 +20,13 @@ import { DataTable, type DataTableFilterMeta } from "primereact/datatable";
 import { Column } from "primereact/column";
 import { FilterMatchMode } from "primereact/api";
 import { addStock,updateStock,getAllStocks } from "../../../Service/InventoryService";
-import { capitalize } from "../../../utility/OtherUtitlity";
 import { DateInput } from "@mantine/dates";
 import { getAllMedicine } from "../../../Service/MedicineService";
-import { formatDate } from "../../../utility/DateUtility";
 
 const Inventory = () => {
   const [data, setData] = useState<any[]>([]);
   const [medicine,setMedicine]=useState<any[]>([]);
-  const [medicineMap,setMedicineMap]=useState<Record<String,any>>({});
+  const [medicineMap,setMedicineMap]=useState<Record<string,any>>({});
   const [edit, setEdit] = useState(false);
   const [filters, setFilters] = useState<DataTableFilterMeta>({
     global: { value: null, matchMode: FilterMatchMode.CONTAINS },
