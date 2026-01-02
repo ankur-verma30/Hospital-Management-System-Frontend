@@ -8,19 +8,17 @@ import {
     type SelectProps,
     Group,
     Badge,
+    LoadingOverlay,
 } from "@mantine/core";
 import { IconCheck, IconEdit, IconPlus, IconSearch, IconTrash } from "@tabler/icons-react";
 import { useForm } from "@mantine/form";
-import {
-    errorNotification,
-    successNotification,
-} from "../../../utility/NotificationUtil";
 import { Fragment, useEffect, useState } from "react";
 import { DataTable, type DataTableFilterMeta } from "primereact/datatable";
 import { Column } from "primereact/column";
 import { FilterMatchMode } from "primereact/api";
 import { getAllMedicine } from "../../../Service/MedicineService";
 import { addSales } from "../../../Service/SalesService";
+import { errorNotification, successNotification } from "../../../utility/NotificationUtil";
 
 interface SaleItem {
     medicineId: string;
@@ -53,22 +51,25 @@ const Sales = () => {
     });
 
     const handleSubmit = (values: any) => {
-
+        // let update=false;
+        const saleItems=values.saleItems.map((x:any)=>({...x, unitPrice:medicineMap[x.medicineId]?.unitPrice}));
+        const totalAmount=saleItems.reduce((acc:any,x:any)=>acc+x.unitPrice*x.quantity,0);
+        console.log("Sales",values);
         setLoading(true);
-        addSales(values)
-            .then((res) => {
-                // successNotification(
-                //     // `Stock ${update ? "Updated" : "Added"} Successfully`
-                // );
+        addSales({saleItems,totalAmount})
+            .then((_res) => {
+                successNotification(
+                    `Medicine sold successfully`
+                );
                 form.reset();
                 setEdit(false);
                 fetchData();
             })
             .catch((error) => {
-                // errorNotification(
-                //     error?.response?.data?.errorMessage ||
-                //     `Error ${update ? "Updating" : "Adding"} Stock`
-                // );
+                errorNotification(
+                    error?.response?.data?.errorMessage ||
+                    `Failed to sell medicine`
+                );
             })
             .finally(() => {
                 setLoading(false);
@@ -87,6 +88,7 @@ const Sales = () => {
     useEffect(() => {
         getAllMedicine()
             .then((res) => {
+                console.log(res);
                 setMedicine(res);
                 setMedicineMap(res.reduce((acc: any, item: any) => {
                     acc[item.id] = item;
@@ -160,7 +162,7 @@ const Sales = () => {
                     <span>{option.label}</span>
                     {option?.manufacturer && (
                         <span style={{ marginLeft: "auto", fontSize: "0.9rem", color: "gray" }}>
-                            {option.manufacturer}
+                            {option.manufacturer} - {option.dosage}
                         </span>
                     )}
                 </div>
@@ -232,6 +234,7 @@ const Sales = () => {
                 </DataTable>
             ) : (
                 <form onSubmit={form.onSubmit(handleSubmit)} className="grid gap-5">
+                    <LoadingOverlay visible={loading} />
                     <Fieldset className="grid gap-5"
                         legend={
                             <span className="text-lg font-medium  text-primary-500">
@@ -251,28 +254,33 @@ const Sales = () => {
                                             label="Medicine ID"
                                             placeholder="Select Medicine ID"
                                             //arr[0].name  and arr.0.name two ways
-                                            data={medicine.map((med) => ({
-                                                ...med,
-                                                value: "" + med.id,
-                                                label: med.name
-                                            }))}
+                                            data={medicine.filter(x => !form.values.saleItems.some((item1: any, idx) => item1.medicineId == x.id &&
+                                                idx != index)).map((med) => ({
+                                                    ...med,
+                                                    value: "" + med.id,
+                                                    label: med.name
+                                                }))}
                                         />
                                     </div>
 
                                     <div className="col-span-2">
                                         <NumberInput
+                                        rightSectionWidth={80}
+                                        rightSection={
+                                            <div className="text-xs text-white font-medium flex gap-1 bg-red-400 p-2 rounded-md"> Stock: {medicineMap[item.medicineId]?.stock || 0}</div>
+                                        }
                                             withAsterisk
                                             {...form.getInputProps(`saleItems.${index}.quantity`)}
                                             min={0}
                                             clampBehavior="strict"
                                             label="Quantity"
                                             placeholder="Enter Quantity"
-                                            max={50}
+                                            max={medicineMap[item.medicineId]?.stock ||0}
                                         />
                                     </div>
                                     <div className="flex items-end justify-between">
                                         {(item.quantity > 0 && item.medicineId) ? <div><span className="text-lg">Total :</span>{item.quantity} X {medicineMap[item.medicineId]?.unitPrice} = {item.quantity * medicineMap[item.medicineId]?.unitPrice}</div>
-                                        :<div></div>}
+                                            : <div></div>}
                                         <ActionIcon size="lg" color="red" onClick={() => form.removeListItem('saleItems', index)}>
                                             <IconTrash size={20} stroke={1.5} />
                                         </ActionIcon>
