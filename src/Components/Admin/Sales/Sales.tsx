@@ -9,16 +9,23 @@ import {
     Group,
     Badge,
     LoadingOverlay,
+    Divider,
+    Text,
+    Card,
+    Modal,
+    Title,
 } from "@mantine/core";
-import { IconCheck, IconEdit, IconPlus, IconSearch, IconTrash } from "@tabler/icons-react";
+import { IconCheck, IconEdit, IconEye, IconPlus, IconSearch, IconTrash } from "@tabler/icons-react";
 import { useForm } from "@mantine/form";
 import { Fragment, useEffect, useState } from "react";
 import { DataTable, type DataTableFilterMeta } from "primereact/datatable";
 import { Column } from "primereact/column";
 import { FilterMatchMode } from "primereact/api";
 import { getAllMedicine } from "../../../Service/MedicineService";
-import { addSales } from "../../../Service/SalesService";
+import { addSales, getAllSaleItems, getAllSales } from "../../../Service/SalesService";
 import { errorNotification, successNotification } from "../../../utility/NotificationUtil";
+import { formatDate } from "../../../utility/DateUtility";
+import { useDisclosure } from "@mantine/hooks";
 
 interface SaleItem {
     medicineId: string;
@@ -32,12 +39,16 @@ const Sales = () => {
     const [filters, setFilters] = useState<DataTableFilterMeta>({
         global: { value: null, matchMode: FilterMatchMode.CONTAINS },
     });
+    const [opened, { open, close }] = useDisclosure(false);
+    const [saleItems, setSaleItems] = useState<any[]>([]);
 
 
     const [globalFilterValue, setGlobalFilterValue] = useState<string>("");
     const [loading, setLoading] = useState(false);
     const form = useForm({
         initialValues: {
+            buyerName: "",
+            buyerContact: "",
             saleItems: [
                 { medicineId: "", quantity: 0 },
             ] as SaleItem[],
@@ -52,11 +63,11 @@ const Sales = () => {
 
     const handleSubmit = (values: any) => {
         // let update=false;
-        const saleItems=values.saleItems.map((x:any)=>({...x, unitPrice:medicineMap[x.medicineId]?.unitPrice}));
-        const totalAmount=saleItems.reduce((acc:any,x:any)=>acc+x.unitPrice*x.quantity,0);
-        console.log("Sales",values);
+        const saleItems = values.saleItems.map((x: any) => ({ ...x, unitPrice: medicineMap[x.medicineId]?.unitPrice }));
+        const totalAmount = saleItems.reduce((acc: any, x: any) => acc + x.unitPrice * x.quantity, 0);
+        console.log("Sales", values);
         setLoading(true);
-        addSales({saleItems,totalAmount})
+        addSales({ ...values, saleItems, totalAmount })
             .then((_res) => {
                 successNotification(
                     `Medicine sold successfully`
@@ -102,14 +113,28 @@ const Sales = () => {
     }, []);
 
     const fetchData = () => {
-        // getAllStocks()
-        //   .then((res) => {
-        //     setData(res);
-        //   })
-        //   .catch((error) => {
-        //     console.log("Error fetching records", error);
-        //   });
+        getAllSales()
+            .then((res) => {
+                console.log("Sales Data", res);
+                setData(res);
+            })
+            .catch((error) => {
+                console.log("Error fetching records", error);
+            });
     };
+
+    const handleDetails = (rowData: any) => {
+        open();
+        setLoading(true);
+        getAllSaleItems(rowData.id).then((res) => {
+            setSaleItems(res);
+        }).catch((error) => {
+            console.log("Error fetching records", error);
+        })
+            .finally(() => {
+                setLoading(false);
+            })
+    }
 
     const onEdit = (rowData: any) => {
         setEdit(true);
@@ -130,8 +155,8 @@ const Sales = () => {
     const actionBodyTemplate = (rowData: any) => {
         return (
             <div className="flex gap-2">
-                <ActionIcon onClick={() => onEdit(rowData)}>
-                    <IconEdit size={20} stroke={1.5} />
+                <ActionIcon onClick={() => handleDetails(rowData)}>
+                    <IconEye size={20} stroke={1.5} />
                 </ActionIcon>
             </div>
         );
@@ -172,10 +197,10 @@ const Sales = () => {
     };
 
 
-    const statusBody = (rowData: any) => {
-        const isExpired = new Date(rowData.expiryDate) < new Date();
-        return <Badge color={isExpired ? "red" : "green"}>{isExpired ? "Expired" : "Active"}</Badge>
-    }
+    // const statusBody = (rowData: any) => {
+    //     const isExpired = new Date(rowData.expiryDate) < new Date();
+    //     return <Badge color={isExpired ? "red" : "green"}>{isExpired ? "Expired" : "Active"}</Badge>
+    // }
 
     const addMoreMedicine = () => {
         form.insertListItem('saleItems', { medicineId: "", quantity: 0 });
@@ -185,6 +210,7 @@ const Sales = () => {
         <div>
             {!edit ? (
                 <DataTable
+                    removableSort
                     header={header}
                     value={data}
                     paginator
@@ -200,29 +226,28 @@ const Sales = () => {
                     emptyMessage="No Stocks found."
                     currentPageReportTemplate="Showing {first} to {last} of {totalRecords} entries"
                 >
-                    <Column field="name" header="Medicine" body={(rowData) => <span>{medicineMap["" + rowData.medicineId]?.name} <span>({medicineMap["" + rowData.medicineId]?.manufacturer})</span></span>} />
+                    <Column field="buyerName" header="Buyer" />
 
-                    <Column field="batchNo" header="Batch No." />
+                    <Column field="buyerContact" header="Contact" />
+
+                    {/* <Column
+                        field="prescriptionId"
+                        header="Prescription ID"
+                    /> */}
 
                     <Column
-                        field="initialQuantity"
-                        header="Quantity"
+                        field="totalAmount"
+                        header="Total Amount"
+                        sortable
+
                     />
 
                     <Column
-                        field="quantity"
-                        header="Remaining Quantity"
-                    />
+                        field="saleDate"
+                        header="Sale Date"
+                        body={(rowData: any) => formatDate(rowData.saleDate)}
+                        sortable
 
-                    <Column
-                        field="expiryDate"
-                        header="Expiry Date"
-
-                    />
-                    <Column
-                        field="status"
-                        header="Status"
-                        body={statusBody}
                     />
 
                     <Column
@@ -235,6 +260,19 @@ const Sales = () => {
             ) : (
                 <form onSubmit={form.onSubmit(handleSubmit)} className="grid gap-5">
                     <LoadingOverlay visible={loading} />
+                    <Fieldset className="grid gap-5"
+                        legend={
+                            <span className="text-lg font-medium  text-primary-500">
+                                Buyer Information
+                            </span>
+                        }
+                        radius="md"
+                    >
+                        <div className="grid grid-cols-2 gap-5">
+                            <TextInput withAsterisk label="Buyer Name" {...form.getInputProps("buyerName")} />
+                            <NumberInput hideControls maxLength={10} withAsterisk label="Contact Details" {...form.getInputProps("buyerContact")} />
+                        </div>
+                    </Fieldset>
                     <Fieldset className="grid gap-5"
                         legend={
                             <span className="text-lg font-medium  text-primary-500">
@@ -265,17 +303,17 @@ const Sales = () => {
 
                                     <div className="col-span-2">
                                         <NumberInput
-                                        rightSectionWidth={80}
-                                        rightSection={
-                                            <div className="text-xs text-white font-medium flex gap-1 bg-red-400 p-2 rounded-md"> Stock: {medicineMap[item.medicineId]?.stock || 0}</div>
-                                        }
+                                            rightSectionWidth={80}
+                                            rightSection={
+                                                <div className="text-xs text-white font-medium flex gap-1 bg-red-400 p-2 rounded-md"> Stock: {medicineMap[item.medicineId]?.stock || 0}</div>
+                                            }
                                             withAsterisk
                                             {...form.getInputProps(`saleItems.${index}.quantity`)}
                                             min={0}
                                             clampBehavior="strict"
                                             label="Quantity"
                                             placeholder="Enter Quantity"
-                                            max={medicineMap[item.medicineId]?.stock ||0}
+                                            max={medicineMap[item.medicineId]?.stock || 0}
                                         />
                                     </div>
                                     <div className="flex items-end justify-between">
@@ -317,6 +355,61 @@ const Sales = () => {
                     </div>
                 </form>
             )}
+            <Modal
+                opened={opened}
+                onClose={close}
+                title="Sold Medicines"
+                size="xl"
+                centered
+            >
+                {saleItems?.map((data, index) => (
+                    console.log("data", data),
+                    <Card key={index} shadow="md" padding="lg" radius="md" withBorder>
+                        <Group justify="space-between" mb="sm">
+                            <Title order={4} mb="sm">
+                                {medicineMap[data.medicineId]?.name}{`(${medicineMap[data.medicineId]?.dosage})`} -     <span className="text-gray-700">{medicineMap[data.medicineId]?.manufacturer}</span>
+                            </Title>
+                            </Group>
+                            <Group>
+                                
+                                    <Text fw={600} size="sm" color="black">
+                                Batch Number: <span className="text-gray-700">{data.batchNo}</span>
+                            </Text>
+                                
+                             
+                        </Group>
+
+                        <Divider
+                            my="sm"
+
+                            label="Medicine Information"
+                            labelPosition="center"
+                        />
+
+                        <Group justify="space-between" mt="sm">
+                            <Text fw={500}>Quantity</Text>
+                            <Text c="dimmed">{data.quantity}</Text>
+                        </Group>
+
+                        <Group justify="space-between" mt="xs">
+                            <Text fw={500}>Unit Price</Text>
+                            <Text c="dimmed">{data.unitPrice}</Text>
+                        </Group>
+
+                        <Group justify="space-between" mt="xs">
+                            <Text fw={500}>Total Amount</Text>
+                            <Text c="dimmed">₹{data.quantity * data.unitPrice} </Text>
+                        </Group>
+
+
+                    </Card>
+                ))}
+                {saleItems.length === 0 && (
+                    <Text color="dimmed" size="sm" mt="md">
+                        No Sales has been made in this pharmacy
+                    </Text>
+                )}
+            </Modal>
         </div>
     );
 };
